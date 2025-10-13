@@ -25,14 +25,14 @@ namespace ApiTests
             Console.WriteLine("Checking TFI GTFS-Realtime feed (JSON mode)...\n");
 
             string apiUrl = "https://api.nationaltransport.ie/gtfsr/v2/gtfsr?format=json";
-            //string apiUrl = "https://api.nationaltransport.ie/gtfsr/v2/gtfsr";  // no ?format
+            //string apiUrl = "https://api.nationaltransport.ie/gtfsr/v2/gtfsr";  // no format for testing....keeps failing!!! didnt realise had to wait 15mins for golive of acc
 
 
             try
             {
-                // wipe headers first, then add key again
+                // use key similar to PLEX/Telegram
                 client.DefaultRequestHeaders.Clear();
-                client.DefaultRequestHeaders.Add("x-api-key", "5f37f29af0364c70a364b3e034deb877");
+                client.DefaultRequestHeaders.Add("x-api-key", "5f37f29af0364c70a364b3e034deb877"); 
 
                 // call the API
                 var response = await client.GetStringAsync(apiUrl);
