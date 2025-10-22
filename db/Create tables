@@ -1,0 +1,64 @@
+-- Create Health Organisation table
+CREATE TABLE IF NOT EXISTS health_org (
+    heorg_id TEXT PRIMARY KEY,           -- e.g. CUH, SFH
+    heorg_name TEXT NOT NULL,            -- e.g. Cork University Hospital
+    address TEXT,                        -- optional for future use
+    region TEXT                          -- optional e.g. South/Southwest
+);
+
+-- Create Admin table
+CREATE TABLE IF NOT EXISTS admin_user (
+    admin_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_login DATETIME
+);
+
+-- Create carpark table
+CREATE TABLE IF NOT EXISTS carpark (
+    carpark_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    heorg_id TEXT NOT NULL,              -- FK to health_org
+    carpark_name TEXT NOT NULL,
+    total_spaces INTEGER NOT NULL,
+    occupied_spaces INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'OPEN',          -- "OPEN" or "CLOSED"
+    last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_modified_by INTEGER,            -- FK to admin_user
+    FOREIGN KEY (heorg_id) REFERENCES health_org(heorg_id),
+    FOREIGN KEY (last_modified_by) REFERENCES admin_user(admin_id)
+);
+
+-- Create carpark_space table
+CREATE TABLE IF NOT EXISTS carpark_space (
+    space_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    carpark_id INTEGER NOT NULL,
+    is_occupied BOOLEAN DEFAULT 0,
+    last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+    session_id TEXT,
+    FOREIGN KEY (carpark_id) REFERENCES carpark(carpark_id)
+);
+
+-- Create carpark_log table
+CREATE TABLE IF NOT EXISTS carpark_log (
+    log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    carpark_id INTEGER NOT NULL,
+    admin_id INTEGER,
+    action TEXT NOT NULL,                -- "CLOSED", "REOPENED", "FILLED", "EMPTIED"
+    detail TEXT,
+    event_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (carpark_id) REFERENCES carpark(carpark_id),
+    FOREIGN KEY (admin_id) REFERENCES admin_user(admin_id)
+);
+
+-- Create weather_cache table
+CREATE TABLE IF NOT EXISTS weather_cache (
+    weather_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    heorg_id TEXT NOT NULL,              -- FK to health_org
+    temperature REAL,
+    windspeed REAL,
+    condition_code INTEGER,
+    description TEXT,
+    recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (heorg_id) REFERENCES health_org(heorg_id)
+);
