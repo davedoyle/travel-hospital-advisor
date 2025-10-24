@@ -4,7 +4,36 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Travel to Hospital Advisor</title>
+  <script>
+      // --- Fetch live weather from backend Weather API ---
+          async function loadWeather(hospitalCode) {
+            try {
+              // Call your local backend API (adjust port if needed)
+              const response = await fetch(`http://localhost:5028/api/weather/${hospitalCode}`);
+                  if (!response.ok) throw new Error("Weather API not responding");
 
+                  const data = await response.json();
+
+              // Debug log
+                  console.log("Weather data:", data);
+
+              // Update DOM
+                  document.getElementById("weather-temp").textContent = `${data.temperature.toFixed(1)}°C`;
+                  document.getElementById("weather-cond").textContent = data.condition;
+                  document.getElementById("weather-uv").textContent = `UV Index: ${data.uv.toFixed(1)}`;
+                  document.getElementById("last-updated").textContent = `Last updated: ${new Date(data.timestamp).toLocaleString()}`;
+                } 
+            catch (err) {
+                  console.error("Error fetching weather:", err);
+                  document.getElementById("weather-temp").textContent = "--°C";
+                  document.getElementById("weather-cond").textContent = "Error fetching data";
+                }
+          }
+
+          // Run automatically on load (default CUH)
+          window.onload = () => loadWeather("CUH");
+</script>
+  </script>
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
@@ -93,10 +122,14 @@
       </div>
     </div>
     <div class="col-md-4">
-      <div class="section-box">
-        <h5>Weather for Location</h5>
-        <p>Temperature: --°C<br>Condition: --</p>
-      </div>
+  <div class="section-box">
+      <h5>Weather for Location</h5>
+    <p>
+      Temperature: <span id="weather-temp">--°C</span><br>
+      Condition: <span id="weather-cond">--</span><br>
+      <span id="weather-uv">UV Index: --</span>
+    </p>
+       </div>
     </div>
     <div class="col-md-4">
       <div class="section-box">
@@ -119,7 +152,7 @@
   <!-- Footer -->
   <footer class="d-flex justify-content-between mt-3">
     <div>Powered by TFI / Open Meteo</div>
-    <div>Last updated: dd/mm/yy hh:mm</div>
+    <div id="last-updated">Last updated: --</div>
   </footer>
 
   <!-- Bootstrap JS -->
