@@ -14,6 +14,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "backend", "backend", "{494D
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "weather-api", "backend\weather-api\weather-api.csproj", "{4B984840-059D-424E-B46A-8D62152CB2F3}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "api-tests", "api-tests", "{75D9F82A-2C75-4C6B-96EE-7C8F5F8A1706}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApiTests", "backend\api-tests\ApiTests\ApiTests.csproj", "{BD53D020-E37F-4AA4-8CDB-064D213920C0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,6 +32,10 @@ Global
 		{4B984840-059D-424E-B46A-8D62152CB2F3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4B984840-059D-424E-B46A-8D62152CB2F3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4B984840-059D-424E-B46A-8D62152CB2F3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BD53D020-E37F-4AA4-8CDB-064D213920C0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BD53D020-E37F-4AA4-8CDB-064D213920C0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BD53D020-E37F-4AA4-8CDB-064D213920C0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BD53D020-E37F-4AA4-8CDB-064D213920C0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -37,6 +45,8 @@ Global
 		{680A199E-B754-E201-E446-BB8F80ED4423} = {ACCF7AFE-DFDB-6A63-2B2B-F4B77603C571}
 		{FA4DE4CA-C1C7-4F1C-C2E0-515D1CC7B213} = {680A199E-B754-E201-E446-BB8F80ED4423}
 		{4B984840-059D-424E-B46A-8D62152CB2F3} = {494DAE0B-F7A4-4B91-9C6D-334C02398398}
+		{75D9F82A-2C75-4C6B-96EE-7C8F5F8A1706} = {494DAE0B-F7A4-4B91-9C6D-334C02398398}
+		{BD53D020-E37F-4AA4-8CDB-064D213920C0} = {75D9F82A-2C75-4C6B-96EE-7C8F5F8A1706}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {4E737FD2-1200-482B-9732-62D2BA7F6DFF}
