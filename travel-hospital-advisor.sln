@@ -10,6 +10,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "api-tests", "api-tests", "{
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApiTests", "backend\api-tests\ApiTests\ApiTests.csproj", "{45319FAB-C397-4C58-A9FE-5B573276F47F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "tfi-api", "backend\tfi-api\tfi-api.csproj", "{34CC49BE-7E0E-4683-8063-6D5B9CAF885D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,6 +26,10 @@ Global
 		{45319FAB-C397-4C58-A9FE-5B573276F47F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{45319FAB-C397-4C58-A9FE-5B573276F47F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{45319FAB-C397-4C58-A9FE-5B573276F47F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{34CC49BE-7E0E-4683-8063-6D5B9CAF885D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{34CC49BE-7E0E-4683-8063-6D5B9CAF885D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{34CC49BE-7E0E-4683-8063-6D5B9CAF885D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{34CC49BE-7E0E-4683-8063-6D5B9CAF885D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -32,6 +38,7 @@ Global
 		{4B984840-059D-424E-B46A-8D62152CB2F3} = {494DAE0B-F7A4-4B91-9C6D-334C02398398}
 		{5CF34AB4-C8B7-4A6B-B915-9EE42FD02A42} = {494DAE0B-F7A4-4B91-9C6D-334C02398398}
 		{45319FAB-C397-4C58-A9FE-5B573276F47F} = {5CF34AB4-C8B7-4A6B-B915-9EE42FD02A42}
+		{34CC49BE-7E0E-4683-8063-6D5B9CAF885D} = {494DAE0B-F7A4-4B91-9C6D-334C02398398}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {4E737FD2-1200-482B-9732-62D2BA7F6DFF}
