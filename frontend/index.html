@@ -29,9 +29,44 @@
                   document.getElementById("weather-cond").textContent = "Error fetching data";
                 }
           }
+         
+         // window.onload = () => loadWeather("CUH");
 
-          // Run automatically on load (default CUH)
-          window.onload = () => loadWeather("CUH");
+      // --- Fetch live bus data from backend TFI API ---
+        async function loadBusTimes(hospitalCode) {
+          try {
+            const response = await fetch(`http://localhost:5030/api/bus/${hospitalCode}`);
+            if (!response.ok) throw new Error("Bus API not responding");
+
+            const data = await response.json();
+            console.log("Bus data:", data);
+
+            // Clear previous results
+            const busList = document.getElementById("bus-times");
+            busList.innerHTML = "";
+
+            // Loop through buses and add each one
+            data.buses.forEach(bus => {
+              const li = document.createElement("li");
+              li.textContent = `Route ${bus.route} → ${bus.destination} (${bus.due_in})`;
+              busList.appendChild(li);
+            });
+
+            document.getElementById("bus-last-updated").textContent = 
+              `Last updated: ${new Date(data.timestamp).toLocaleTimeString()}`;
+          } 
+          catch (err) {
+            console.error("Error fetching bus times:", err);
+            document.getElementById("bus-times").innerHTML = "<li>Error fetching data</li>";
+          }
+        }
+           // Run automatically on load (default CUH)
+        window.onload = () => {
+                                loadWeather("CUH");
+                                loadBusTimes("CUH");
+                              };
+
+
 </script>
   </script>
   <!-- Bootstrap CSS -->
@@ -115,12 +150,15 @@
 
   <!-- Three Panels -->
   <div class="row g-4 text-center mb-4">
-    <div class="col-md-4">
-      <div class="section-box">
-        <h5>Next Bus Arrives at CUH</h5>
-        <p>Bus Times for CUH leaving/arriving</p>
-      </div>
+   <div class="col-md-4">
+    <div class="section-box">
+      <h5>Next Buses at CUH</h5>
+        <ul id="bus-times" style="list-style:none; padding-left:0;">
+        <li>Loading...</li>
+        </ul>
+        <small id="bus-last-updated" style="color:gray;">Last updated: --</small>
     </div>
+</div>
     <div class="col-md-4">
   <div class="section-box">
       <h5>Weather for Location</h5>
