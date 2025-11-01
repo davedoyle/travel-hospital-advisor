@@ -1,0 +1,43 @@
+-- ==============================
+--  GTFS Static Data Tables --design from DOCS TFI
+-- ==============================
+
+-- 1. Stops (bus stops)
+CREATE TABLE IF NOT EXISTS stops (
+    stop_id TEXT PRIMARY KEY,
+    stop_code TEXT,
+    stop_name TEXT,
+    stop_lat REAL,
+    stop_lon REAL
+);
+
+-- 2. Routes (bus route info)
+CREATE TABLE IF NOT EXISTS routes (
+    route_id TEXT PRIMARY KEY,
+    agency_id TEXT,
+    route_short_name TEXT,
+    route_long_name TEXT,
+    route_type INTEGER
+);
+
+-- 3. Trips (specific journeys on a route)
+CREATE TABLE IF NOT EXISTS trips (
+    trip_id TEXT PRIMARY KEY,
+    route_id TEXT,
+    service_id TEXT,
+    trip_headsign TEXT,
+    direction_id INTEGER
+);
+
+-- 4. Stop times (schedule of stops for each trip)
+CREATE TABLE IF NOT EXISTS stop_times (
+    trip_id TEXT,
+    arrival_time TEXT,
+    departure_time TEXT,
+    stop_id TEXT,
+    stop_sequence INTEGER,
+    PRIMARY KEY (trip_id, stop_sequence)
+);
+
+-- 5. Optional index for fast lookups
+CREATE INDEX IF NOT EXISTS idx_stop_times_stop ON stop_times(stop_id);
