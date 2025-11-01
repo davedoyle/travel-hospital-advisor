@@ -4,17 +4,24 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Data.Sqlite;
 
 // ==============================================
-// Travel to Hospital Advisor – Bus Service API
-// Combines SQLite static data with TFI realtime
+// Travel to Hospital Advisor – Live TFI Feed API
+// Focused on CUH and SFH bus stops only
 // ==============================================
 
 var builder = WebApplication.CreateBuilder(args);
+
+/*
+   NOTE: This service queries the GTFS-Realtime feed directly
+   and extracts upcoming live departures for CUH and SFH stops.
+   The logic now matches flexible stop IDs (e.g. 243341 vs 8370B243341)
+   and stores debug output for troubleshooting.
+*/
 
 // Enable CORS for local frontend calls
 builder.Services.AddCors(options =>
@@ -28,225 +35,240 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 app.UseCors("AllowFrontend");
 
-// Shared HttpClient
+// Shared HttpClient for all calls
 HttpClient client = new HttpClient();
 
-// SQLite database path
-const string DbPath = @"C:\Users\user\Desktop\Final Project\travel-hospital-advisor\db\THA_db.db";
-
-// Known hospital stops
-var hospitalStops = new Dictionary<string, List<string>>
-{
-    { "CUH", new List<string> { "8370B243341" } },
-    { "SFH", new List<string> { "8370B2528201" } }
-};
-
-// TFI API settings
+// TFI feed configuration
 const string ApiKey = "5f37f29af0364c70a364b3e034deb877";
 const string FeedUrl = "https://api.nationaltransport.ie/gtfsr/v2/gtfsr?format=json";
 
-// Root endpoint
-app.MapGet("/", () => "TFI GTFS Realtime API – Hospital Bus Feed (CUH / SFH)");
-
-
-// -------------------------------------------------------------------------
-// /api/bus/{hospitalCode} → Combines static + live TFI data
-// -------------------------------------------------------------------------
-app.MapGet("/api/bus/{hospitalCode}", async (string hospitalCode) =>
+// Known hospital stop IDs
+var hospitalStops = new Dictionary<string, string>
 {
-    hospitalCode = hospitalCode.ToUpper();
-    if (!hospitalStops.ContainsKey(hospitalCode))
-        return Results.NotFound(new { error = "Unknown hospital code. Use CUH or SFH." });
+    { "CUH", "8370B243341" },
+    { "SFH", "8370B2528201" }
+};
 
-    string stopId = hospitalStops[hospitalCode].First();
-    Console.WriteLine($"Incoming request for hospital: {hospitalCode} (Stop ID: {stopId})");
-
-    try
-    {
-        // === Step 1: Load scheduled trips from SQLite ===
-        var scheduledList = new List<BusSchedule>();
-        using (var conn = new SqliteConnection($"Data Source={DbPath}"))
-        {
-            await conn.OpenAsync();
-            string sql = @"
-                SELECT 
-                    r.route_long_name, 
-                    r.route_short_name,
-                    t.trip_headsign, 
-                    t.service_id,
-                    s.arrival_time, 
-                    s.trip_id
-                FROM routes r
-                JOIN trips t ON r.route_id = t.route_id
-                JOIN stop_times s ON s.trip_id = t.trip_id
-                WHERE s.stop_id = @stopId
-                ORDER BY s.arrival_time;";
-            using var cmd = new SqliteCommand(sql, conn);
-            cmd.Parameters.AddWithValue("@stopId", stopId);
-            using var reader = await cmd.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
-            {
-                scheduledList.Add(new BusSchedule
-                {
-                    RouteName = reader["route_long_name"].ToString(),
-                    RouteShortName = reader["route_short_name"].ToString(),
-                    TripHeadsign = reader["trip_headsign"].ToString(),
-                    ServiceId = reader["service_id"].ToString(),
-                    ArrivalTime = reader["arrival_time"].ToString(),
-                    TripId = reader["trip_id"].ToString()
-                });
-            }
-        }
-
-        Console.WriteLine($"SQLite returned {scheduledList.Count} scheduled rows for stop {stopId}");
-
-        // Filter: keep next 10 upcoming trips only
-        var upcoming = scheduledList
-            .Where(x =>
-            {
-                if (TimeSpan.TryParse(x.ArrivalTime, out var t))
-                    return t > DateTime.Now.TimeOfDay;
-                return false;
-            })
-            .Take(10)
-            .ToList();
-
-        Console.WriteLine($"Filtered to {upcoming.Count} upcoming trips for {hospitalCode}");
-
-        // === Step 2: Fetch realtime TFI JSON ===
-        client.DefaultRequestHeaders.Clear();
-        client.DefaultRequestHeaders.Add("x-api-key", ApiKey);
-
-        var response = await client.GetAsync(FeedUrl);
-        Console.WriteLine($"TFI response: {response.StatusCode}");
-        var json = await response.Content.ReadAsStringAsync();
-
-        Directory.CreateDirectory("debug");
-        await File.WriteAllTextAsync("debug/tfi_debug.json", json);
-        var feed = JsonSerializer.Deserialize<RealtimeFeed>(json);
-
-        if (feed?.entity == null)
-        {
-            Console.WriteLine("⚠️ No realtime entities found.");
-            return Results.Json(new { hospital = hospitalCode, buses = upcoming });
-        }
-
-        // === Step 3: Combine scheduled + live ===
-        var finalList = new List<BusResult>();
-        int matchedCount = 0;
-
-        foreach (var sched in upcoming)
-        {
-            var liveMatch = feed.entity
-                .Where(e => e.trip_update?.trip?.trip_id == sched.TripId)
-                .SelectMany(e => e.trip_update.stop_time_update ?? new List<StopTimeUpdate>())
-                .FirstOrDefault(u => u.stop_id == stopId);
-
-            int? delaySec = liveMatch?.arrival?.delay ?? liveMatch?.departure?.delay;
-            int delayMin = delaySec.HasValue ? delaySec.Value / 60 : 0;
-
-            // ignore unrealistic values
-            if (delayMin < -5 || delayMin > 60)
-                delayMin = 0;
-
-            DateTime schedTime = DateTime.Parse(sched.ArrivalTime);
-            DateTime finalDue = schedTime.AddMinutes(delayMin);
-
-            matchedCount++;
-
-            Console.WriteLine(
-                $"MATCHED: {sched.RouteShortName} {sched.TripHeadsign} → {finalDue:HH:mm} " +
-                (delayMin > 0 ? $"(+{delayMin} min delay)" :
-                 delayMin < 0 ? $"({delayMin} min early)" :
-                 "(on time)")
-            );
-
-            finalList.Add(new BusResult
-            {
-                Route = sched.RouteName,
-                RouteShortName = sched.RouteShortName,
-                Destination = sched.TripHeadsign,
-                ServiceId = sched.ServiceId,
-                Scheduled = schedTime.ToString("HH:mm"),
-                DelayMin = delayMin != 0 ? delayMin : null,
-                FinalDue = finalDue.ToString("HH:mm"),
-                DueIn = delayMin == 0 ? "On Time" : $"{delayMin:+#;-#;0} min"
-            });
-        }
-
-        Console.WriteLine($"Matched {matchedCount} live trips for stop {stopId}");
-
-        // === Step 4: Return formatted JSON ===
-        return Results.Json(new
-        {
-            hospital = hospitalCode,
-            timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-            buses = finalList
-        });
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Bus data retrieval failed: {ex.Message}");
-        return Results.Problem($"Bus data retrieval failed: {ex.Message}");
-    }
+// ------------------------------------------------------------
+// Root route (friendly message)
+// ------------------------------------------------------------
+app.MapGet("/", () =>
+{
+    return "TFI GTFS Realtime Live Feed API – Hospital Stops (CUH / SFH)";
 });
 
-// -------------------------------------------------------------------------
-// /api/debug/fullfeed/{stopId} – dump all trips + delays for a given stop ---debug is constantly changing!
-// -------------------------------------------------------------------------
-app.MapGet("/api/debug/fullfeed/{stopId}", async (string stopId) =>
+
+// ------------------------------------------------------------
+// /api/live/searchstop/{stopId} → Quick search for stop matches
+// ------------------------------------------------------------
+app.MapGet("/api/live/searchstop/{stopId}", async (string stopId) =>
 {
     client.DefaultRequestHeaders.Clear();
     client.DefaultRequestHeaders.Add("x-api-key", ApiKey);
-
     var response = await client.GetAsync(FeedUrl);
-    Console.WriteLine($"[DEBUG] Pulling full feed for stop {stopId}, status {response.StatusCode}");
-    var content = await response.Content.ReadAsStringAsync();
+    var json = await response.Content.ReadAsStringAsync();
 
-    var feed = JsonSerializer.Deserialize<RealtimeFeed>(content);
+    var feed = JsonSerializer.Deserialize<RealtimeFeed>(json);
     if (feed?.entity == null)
-        return Results.Json(new { error = "No entities found in realtime feed." });
+        return Results.Json(new { error = "No entities found." });
 
-    var allMatches = new List<object>();
+    string coreId = stopId.Length > 6 ? stopId[^6..] : stopId; // last 6 chars
+    var matches = feed.entity
+        .Where(e => e.trip_update?.stop_time_update != null)
+        .SelectMany(e => e.trip_update.stop_time_update
+            .Where(s => s.stop_id != null && s.stop_id.Contains(coreId)))
+        .ToList();
 
-    foreach (var e in feed.entity)
-    {
-        var tripId = e.trip_update?.trip?.trip_id;
-        var routeId = e.trip_update?.trip?.route_id;
+    Console.WriteLine($"SearchStop: Found {matches.Count} entries matching stop {stopId} (core {coreId}).");
 
-        if (e.trip_update?.stop_time_update == null)
-            continue;
-
-        foreach (var s in e.trip_update.stop_time_update)
-        {
-            if (s.stop_id == stopId)
-            {
-                allMatches.Add(new
-                {
-                    tripId,
-                    routeId,
-                    stopId = s.stop_id,
-                    arrivalDelay = s.arrival?.delay,
-                    departureDelay = s.departure?.delay,
-                    arrivalTime = s.arrival?.time,
-                    departureTime = s.departure?.time
-                });
-            }
-        }
-    }
-
-    Console.WriteLine($"[DEBUG] Found {allMatches.Count} raw updates for stop {stopId}");
-
-    // Return raw, no filtering
     return Results.Json(new
     {
         stopId,
-        totalMatches = allMatches.Count,
-        timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-        data = allMatches
+        matches = matches.Count
     });
 });
 
 
+// ------------------------------------------------------------
+// /api/live/hospitals → Pull live arrivals for CUH + SFH
+// ------------------------------------------------------------
+app.MapGet("/api/live/hospitals", async () =>
+{
+    client.DefaultRequestHeaders.Clear();
+    client.DefaultRequestHeaders.Add("x-api-key", ApiKey);
 
-app.Run("http://localhost:5030");
+    Console.WriteLine("Fetching live feed for CUH + SFH...");
+    var response = await client.GetAsync(FeedUrl);
+    Console.WriteLine($"TFI response: {response.StatusCode}");
+
+    var json = await response.Content.ReadAsStringAsync();
+    Directory.CreateDirectory("debug");
+    await File.WriteAllTextAsync($"debug/tfi_livefeed_{DateTime.Now:HHmmss}.json", json);
+
+    var feed = JsonSerializer.Deserialize<RealtimeFeed>(json);
+    if (feed?.entity == null)
+        return Results.Json(new { error = "No entities found in live feed." });
+
+    var stops = new List<object>();
+
+    foreach (var hospital in hospitalStops)
+    {
+        string hospitalName = hospital.Key;
+        string stopId = hospital.Value;
+        string coreId = stopId.Length > 6 ? stopId[^6..] : stopId; // last 6 digits
+
+        Console.WriteLine($"Checking hospital {hospitalName} (stop {stopId}, core {coreId})...");
+
+        var liveMatches = feed.entity
+            .Where(e => e.trip_update?.stop_time_update != null)
+            .SelectMany(e => e.trip_update.stop_time_update
+                .Where(s => s.stop_id != null && s.stop_id.Contains(coreId))
+                .Select(s => new
+                {
+                    trip = e.trip_update.trip?.trip_id,
+                    route = e.trip_update.trip?.route_id,
+                    stop = s.stop_id,
+                    arrDelay = s.arrival?.delay,
+                    depDelay = s.departure?.delay,
+                    arrTime = s.arrival?.time,
+                    depTime = s.departure?.time
+                }))
+            .ToList();
+
+        Console.WriteLine($"Found {liveMatches.Count} matches for {hospitalName}.");
+
+        stops.Add(new
+        {
+            hospital = hospitalName,
+            stop_id = stopId,
+            upcoming = liveMatches.Take(5)
+        });
+    }
+
+    Console.WriteLine("=== SUMMARY ===");
+    foreach (var s in stops)
+        Console.WriteLine(JsonSerializer.Serialize(s));
+
+    var result = new
+    {
+        timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+        stops
+    };
+
+    return Results.Json(result);
+});
+
+
+// ------------------------------------------------------------
+// /api/live/raw/{stopId} → Dump all realtime entries for any stop
+// ------------------------------------------------------------
+app.MapGet("/api/live/raw/{stopId}", async (string stopId) =>
+{
+    client.DefaultRequestHeaders.Clear();
+    client.DefaultRequestHeaders.Add("x-api-key", ApiKey);
+    var response = await client.GetAsync(FeedUrl);
+    var json = await response.Content.ReadAsStringAsync();
+
+    var feed = JsonSerializer.Deserialize<RealtimeFeed>(json);
+    if (feed?.entity == null)
+        return Results.Json(new { error = "No entities found." });
+
+    string coreId = stopId.Length > 6 ? stopId[^6..] : stopId;
+    var matches = feed.entity
+        .Where(e => e.trip_update?.stop_time_update != null)
+        .SelectMany(e => e.trip_update.stop_time_update
+            .Where(s => s.stop_id != null && s.stop_id.Contains(coreId))
+            .Select(s => new
+            {
+                tripId = e.trip_update.trip?.trip_id,
+                routeId = e.trip_update.trip?.route_id,
+                stopId = s.stop_id,
+                arrivalDelay = s.arrival?.delay,
+                departureDelay = s.departure?.delay,
+                arrivalTime = s.arrival?.time,
+                departureTime = s.departure?.time
+            }))
+        .ToList();
+
+    return Results.Json(new
+    {
+        stopId,
+        totalMatches = matches.Count,
+        timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+        data = matches.Take(10)
+    });
+});
+
+
+// ------------------------------------------------------------
+// Run the app on port 5040
+// ------------------------------------------------------------
+app.Run("http://localhost:5040");
+
+
+// =======================================
+//   GTFS Realtime Feed Models
+// =======================================
+public class RealtimeFeed
+{
+    public List<RealtimeEntity> entity { get; set; } = new();
+}
+
+public class RealtimeEntity
+{
+    public string id { get; set; }
+    public TripUpdate trip_update { get; set; }
+}
+
+public class TripUpdate
+{
+    public TripDescriptor trip { get; set; }
+    public List<StopTimeUpdate> stop_time_update { get; set; }
+}
+
+public class TripDescriptor
+{
+    public string trip_id { get; set; }
+    public string route_id { get; set; }
+}
+
+public class StopTimeUpdate
+{
+    public int? stop_sequence { get; set; }
+    public StopTimeEvent arrival { get; set; }
+    public StopTimeEvent departure { get; set; }
+    public string stop_id { get; set; }
+}
+
+public class StopTimeEvent
+{
+    [JsonConverter(typeof(FlexibleLongConverter))]
+    public long? time { get; set; }
+    public int? delay { get; set; }
+}
+
+// Converter for handling string or numeric UNIX timestamps
+public class FlexibleLongConverter : JsonConverter<long?>
+{
+    public override long? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt64(out var val))
+            return val;
+
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            var str = reader.GetString();
+            if (long.TryParse(str, out var val2))
+                return val2;
+        }
+        return null;
+    }
+
+    public override void Write(Utf8JsonWriter writer, long? value, JsonSerializerOptions options)
+    {
+        if (value.HasValue)
+            writer.WriteNumberValue(value.Value);
+        else
+            writer.WriteNullValue();
+    }
+}
