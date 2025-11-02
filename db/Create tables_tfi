@@ -41,3 +41,37 @@ CREATE TABLE IF NOT EXISTS stop_times (
 
 -- 5. Optional index for fast lookups
 CREATE INDEX IF NOT EXISTS idx_stop_times_stop ON stop_times(stop_id);
+
+--handle tfi feed
+CREATE TABLE IF NOT EXISTS live_feed (
+    entity_id TEXT,
+    trip_id TEXT,
+    route_id TEXT,
+    stop_sequence INTEGER,
+    stop_id TEXT,
+    arrival_delay INTEGER,
+    departure_delay INTEGER,
+    arrival_time INTEGER,
+    departure_time INTEGER,
+    start_time TEXT,
+    start_date TEXT,
+    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE calendar (
+    service_id INTEGER PRIMARY KEY,
+    monday INTEGER,
+    tuesday INTEGER,
+    wednesday INTEGER,
+    thursday INTEGER,
+    friday INTEGER,
+    saturday INTEGER,
+    sunday INTEGER,
+    start_date TEXT,
+    end_date TEXT
+);
+CREATE TABLE calendar_dates (
+    service_id INTEGER,
+    date TEXT,
+    exception_type INTEGER
+);
