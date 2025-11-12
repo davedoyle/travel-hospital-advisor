@@ -16,6 +16,14 @@ using Microsoft.Data.Sqlite;
 // ==========================================
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Load configuration
+var config = builder.Configuration.GetSection("TFI");
+string ApiKey = config.GetValue<string>("ApiKey");
+string FeedUrl = config.GetValue<string>("FeedUrl");
+string DbPath = config.GetValue<string>("DatabasePath");
+int refreshInterval = config.GetValue<int>("RefreshIntervalSeconds", 60);
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
@@ -30,9 +38,9 @@ app.UseCors("AllowFrontend");
 // Config
 // -------------------------------------------
 HttpClient client = new HttpClient();
-const string ApiKey = "5f37f29af0364c70a364b3e034deb877";
-const string FeedUrl = "https://api.nationaltransport.ie/gtfsr/v2/gtfsr?format=json";
-const string DbPath = @"C:\Users\user\Desktop\Final Project\travel-hospital-advisor\db\tfi_db.db";
+//const string ApiKey = "5f37f29af0364c70a364b3e034deb877";
+//const string FeedUrl = "https://api.nationaltransport.ie/gtfsr/v2/gtfsr?format=json";
+//const string DbPath = @"C:\Users\user\Desktop\Final Project\travel-hospital-advisor\db\tfi_db.db";
 var hospitalStops = new Dictionary<string, string>
 {
     { "CUH", "8370B243341" },
@@ -171,7 +179,7 @@ app.MapGet("/api/bus/{hospitalCode}", async (string hospitalCode) =>
         return Results.NotFound(new { error = "Unknown hospital code (CUH/SFH)" });
 
     // Run importer before query
-    await ImportLiveFeedToSQLite();
+    //await ImportLiveFeedToSQLite(); not needed!!!!
 
     string stopId = hospitalStops[hospitalCode];
     Console.WriteLine($"[API] Querying data for {hospitalCode} ({stopId})...");
@@ -260,6 +268,32 @@ ORDER BY w.arrival_time;";
         results
     });
 });
+
+
+// -------------------------------------------
+// Background importer every 60 seconds
+// -------------------------------------------
+await ImportLiveFeedToSQLite(); // initial fetch
+
+var timer = new PeriodicTimer(TimeSpan.FromSeconds(refreshInterval));
+_ = Task.Run(async () =>
+{
+    Console.WriteLine("[Background] Starting periodic TFI importer (every 60s)");
+    while (await timer.WaitForNextTickAsync())
+    {
+        try
+        {
+            Console.WriteLine($"[Background] Refreshing feed at {DateTime.Now:HH:mm:ss}");
+            await ImportLiveFeedToSQLite();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Background] Import failed: {ex.Message}");
+        }
+    }
+});
+
+
 
 // -------------------------------------------
 app.Run("http://localhost:5030");

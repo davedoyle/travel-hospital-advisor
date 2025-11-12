@@ -255,7 +255,13 @@ buses.forEach(bus => {
     // === Auto-load CUH on start ===
     window.onload = () => {
       setHospital("CUH");
-    };
+
+      // Refresh every 60 seconds to match backend update
+      setInterval(() => {
+        loadWeather(currentHospital);
+        loadBusTimes(currentHospital);
+      }, 60000);
+        };
   </script>
 
 </body>
