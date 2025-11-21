@@ -4,7 +4,6 @@ using Microsoft.Data.Sqlite;
 using System.Text.Json;
 using System.IO;
 
-
 // ------------------------------------------------------------
 // Carpark Simulation Engine
 // This runs every 5 seconds and updates all carparks in the DB.
@@ -23,10 +22,8 @@ if (string.IsNullOrWhiteSpace(dbPath))
     return;
 }
 
-// full SQLite connection string
 var connectionString = $"Data Source={dbPath};";
 
-// simple flag so we can shut it down safely later if needed
 var app = builder.Build();
 
 // start simulation loop in background
@@ -38,14 +35,14 @@ _ = Task.Run(async () =>
     {
         try
         {
-            RunSimulationTick(connectionString);
+            await RunSimulationTick(connectionString);
         }
         catch (Exception ex)
         {
             Console.WriteLine("Simulation error: " + ex.Message);
         }
 
-        await Task.Delay(5000); // 5-second update window
+        await Task.Delay(5000);
     }
 });
 
@@ -56,26 +53,34 @@ app.Run();
 // ------------------------------------------------------------
 // SIMULATION LOGIC
 // ------------------------------------------------------------
-void RunSimulationTick(string connString)
+async Task RunSimulationTick(string connString)
 {
     var now = DateTime.Now;
     int hour = now.Hour;
 
-    // decide behaviour for this hour
-    // positive = filling, negative = emptying
-    int changeRate = DetermineChangeRate(hour); //restore post test
-    //int changeRate = 5;//testing
+    int changeRate = DetermineChangeRate(hour);
+
     using var conn = new SqliteConnection(connString);
-    conn.Open();
+    await conn.OpenAsync();
+
+    // --- NOLOCK-style behaviour for SQLite ---
+    var cfg = conn.CreateCommand();
+    cfg.CommandText = @"
+        PRAGMA journal_mode = WAL;
+        PRAGMA busy_timeout = 2000;
+        PRAGMA read_uncommitted = TRUE;
+    ";
+    await cfg.ExecuteNonQueryAsync();
 
     // get all carparks
     var cmd = conn.CreateCommand();
     cmd.CommandText = "SELECT carpark_id, total_spaces, occupied_spaces FROM carpark;";
-    using var reader = cmd.ExecuteReader();
+
+    using var reader = await cmd.ExecuteReaderAsync();
 
     var updates = new List<(int id, int total, int occupied)>();
 
-    while (reader.Read())
+    while (await reader.ReadAsync())
     {
         updates.Add((
             reader.GetInt32(0),
@@ -88,17 +93,16 @@ void RunSimulationTick(string connString)
 
     foreach (var item in updates)
     {
-        // small random element so it's not robotic
-        var rand = Random.Shared.Next(-1, 2); // -1, 0, or +1
-        Console.WriteLine($"Tick: hour={hour}, changeRate={changeRate}, rand={rand}");// testing
+        var rand = Random.Shared.Next(-1, 2);
+        Console.WriteLine($"Tick: hour={hour}, changeRate={changeRate}, rand={rand}");
+
         int newOccupied = item.occupied + changeRate + rand;
 
-        // basic bounds: can't exceed total spaces or drop below zero
         if (newOccupied < 0) newOccupied = 0;
         if (newOccupied > item.total) newOccupied = item.total;
 
-        UpdateCarpark(conn, item.id, newOccupied);
-        InsertLog(conn, item.id, item.occupied, newOccupied);
+        await UpdateCarpark(conn, item.id, newOccupied);
+        await InsertLog(conn, item.id, item.occupied, newOccupied);
     }
 
     Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Simulation tick complete.");
@@ -106,39 +110,23 @@ void RunSimulationTick(string connString)
 
 
 // ------------------------------------------------------------
-// Adjust filling/emptying based on real clock
+// Change rate based on real time
 // ------------------------------------------------------------
 int DetermineChangeRate(int hour)
 {
-    // 09:00–13:00 → filling quickly
-    if (hour >= 9 && hour < 13)
-        return 3;
-
-    // 12:00–16:00 → emptying
-    if (hour >= 12 && hour < 16)
-        return -2;
-
-    // 19:00–20:00 → visiting hour, filling
-    if (hour >= 19 && hour < 20)
-        return 4;
-
-    // 20:00–23:00 → emptying
-    if (hour >= 20 && hour < 23)
-        return -3;
-
-    // 23:00–07:00 → quiet overnight
-    if (hour >= 23 || hour < 7)
-        return 0;
-
-    // general daytime (7–9am, 16–19)
-    return 1; // trickle in
+    if (hour >= 9 && hour < 13) return 3;
+    if (hour >= 12 && hour < 16) return -2;
+    if (hour >= 19 && hour < 20) return 4;
+    if (hour >= 20 && hour < 23) return -3;
+    if (hour >= 23 || hour < 7)  return 0;
+    return 1;
 }
 
 
 // ------------------------------------------------------------
 // Update carpark record
 // ------------------------------------------------------------
-void UpdateCarpark(SqliteConnection conn, int carparkId, int newOccupied)
+async Task UpdateCarpark(SqliteConnection conn, int carparkId, int newOccupied)
 {
     var cmd = conn.CreateCommand();
     cmd.CommandText = @"
@@ -151,14 +139,14 @@ void UpdateCarpark(SqliteConnection conn, int carparkId, int newOccupied)
     cmd.Parameters.AddWithValue("$occ", newOccupied);
     cmd.Parameters.AddWithValue("$id", carparkId);
 
-    cmd.ExecuteNonQuery();
+    await cmd.ExecuteNonQueryAsync();
 }
 
 
 // ------------------------------------------------------------
 // Log changes
 // ------------------------------------------------------------
-void InsertLog(SqliteConnection conn, int carparkId, int oldValue, int newValue)
+async Task InsertLog(SqliteConnection conn, int carparkId, int oldValue, int newValue)
 {
     string action;
     string detail = $"Auto-sim tick: {oldValue} → {newValue}";
@@ -180,5 +168,5 @@ void InsertLog(SqliteConnection conn, int carparkId, int oldValue, int newValue)
     cmd.Parameters.AddWithValue("$act", action);
     cmd.Parameters.AddWithValue("$det", detail);
 
-    cmd.ExecuteNonQuery();
+    await cmd.ExecuteNonQueryAsync();
 }

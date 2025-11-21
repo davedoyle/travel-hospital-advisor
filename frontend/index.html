@@ -18,10 +18,40 @@
       --black: #000000;
     }
 
+    /* Body now used for background image per hospital */
     body {
-      background-color: #f4f7f4;
-      color: var(--black);
+      margin: 0;
+      padding: 0;
       font-family: 'Segoe UI', sans-serif;
+      color: var(--black);
+      background-color: #f4f7f4;
+      background-repeat: no-repeat;
+      background-size: cover;
+      background-attachment: fixed;
+      background-position: center;
+      transition: background-color 0.4s ease; /* cheap little fade */
+    }
+
+    /* Default background if nothing is set yet */
+    body.default-bg {
+      background-color: #f4f7f4;
+    }
+
+    /* CUH background */
+    body.cuh-bg {
+      background-image: url("images/CUH_bg.jpg"); 
+    }
+
+    /* SFH background */
+    body.sfh-bg {
+      background-image: url("images/SFH_bg.jpg");
+    }
+
+    /* Main page wrapper stays on white cards so text stays readable */
+    .page-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1.5rem 1rem 2.5rem 1rem;
     }
 
     .header {
@@ -59,97 +89,161 @@
       background-color: var(--pigment);
       color: white;
     }
+
+    .footer-box {
+      background-color: white;
+      border-left: 6px solid var(--pigment);
+      padding: 6px 12px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      font-size: 0.9rem;
+    }
+
+        /* Notification container */
+    .update-toast {
+      position: fixed;
+      top: 20px;
+      right: -260px;    /* off-screen */
+      width: 240px;
+      background: white;
+      border-left: 6px solid var(--pigment);
+      padding: 12px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      z-index: 9999;
+      font-weight: 500;
+      transition: right 0.6s ease-out;
+    }
+
+    /* When visible */
+    .update-toast.show {
+      right: 20px;      /* slide into view */
+    }
+
+    /* Progress bar container */
+    .update-toast-progress {
+      width: 100%;
+      height: 6px;
+      background: #ddd;
+      border-radius: 4px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    /* Filling bar */
+    .update-toast-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--jade);
+      transition: width 1.4s linear; 
+    }
+
+   
   </style>
 </head>
 
-<body class="container py-4">
-
-  <!-- Header -->
-  <div class="row mb-3">
-    <div class="col-md-6">
-      <h3 class="header">Travel to Hospital Advisor</h3>
-    </div>
-    <div class="col-md-6 text-end">
-      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#hospitalModal">Select Hospital Site</button>
-    </div>
-  </div>
-
-  <!-- Hospital Choice -->
-  <div class="row text-center mb-4">
-    <div class="col">
-      <div class="section-box">
-        <strong>Hospital Choice:</strong> <span id="selected-hospital">CUH</span>
-      </div>
-    </div>
-  </div>
-
-<!-- Two Panels: Weather + Car Park -->
-<div class="row g-4 text-center mb-4">
-  <div class="col-md-6">
-    <div class="section-box">
-      <h5>Weather for Location</h5>
-      <p>
-        Temperature: <span id="weather-temp">--°C</span><br>
-        Condition: <span id="weather-cond">--</span><br>
-        <span id="weather-uv">UV Index: --</span>
-      </p>
-    </div>
-  </div>
-
-  <div class="col-md-6">
-    <div class="section-box">
-      <h5>Car Park Status</h5>
-      <p id="carpark-status">
-        Car Park 1 CUH: 45/50<br>Car Park 2 CUH: 32/60<br>Car Park 3 CUH: 20/90
-      </p>
-    </div>
-  </div>
-</div>
-
-<!-- Full-width Bus Times -->
-<div class="row mb-4">
-  <div class="col-12">
-    <div class="section-box">
-      <h5 id="bus-panel-title" class="text-center">Next Buses at CUH</h5>
-
-      <div class="table-responsive">
-        <table class="table table-sm align-middle text-center" id="bus-table">
-          <thead>
-            <tr>
-              <th>Route</th>
-              <th>Destination</th>
-              <th>Scheduled</th>
-              <th>Expected</th>
-              <th>Delay</th>
-              <th>Live</th>
-            </tr>
-          </thead>
-          <tbody id="bus-body">
-            <tr><td colspan="6">Loading...</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <small id="bus-last-updated" style="color:gray;">Last updated: --</small>
-    </div>
+<div id="updateToast" class="update-toast">
+  All data updated
+  <div class="update-toast-progress">
+    <div id="updateToastFill" class="update-toast-fill"></div>
   </div>
 </div>
 
 
-  <!-- Suggestion Box -->
-  <div class="row">
-    <div class="col">
-      <div class="suggestion text-center">
-        Heavy rain forecast today — car parks may be busy. Bring a coat and allow extra travel time.
+
+<body class="default-bg">
+  <div class="page-wrapper container">
+
+    <!-- Header -->
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <h3 class="header">Travel to Hospital Advisor</h3>
+      </div>
+      <div class="col-md-6 text-end">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#hospitalModal">
+          Select Hospital Site
+        </button>
       </div>
     </div>
-  </div>
 
-  <!-- Footer -->
-  <footer class="d-flex justify-content-between mt-3">
-    <div>Powered by TFI / Open Meteo</div>
-    <div id="last-updated">Last updated: --</div>
-  </footer>
+    <!-- Hospital Choice -->
+    <div class="row text-center mb-4">
+      <div class="col">
+        <div class="section-box">
+          <strong>Hospital Choice:</strong> <span id="selected-hospital">CUH</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Two Panels: Weather + Car Park -->
+    <div class="row g-4 text-center mb-4">
+      <div class="col-md-6">
+        <div class="section-box">
+          <h5>Weather for Location</h5>
+          <p>
+            Temperature: <span id="weather-temp">--°C</span><br>
+            Condition: <span id="weather-cond">--</span><br>
+            <span id="weather-uv">UV Index: --</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="section-box">
+          <h5>Car Park Status</h5>
+          <p id="carpark-status">
+            Car Park 1 CUH: 45/50<br>Car Park 2 CUH: 32/60<br>Car Park 3 CUH: 20/90
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full-width Bus Times -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="section-box">
+          <h5 id="bus-panel-title" class="text-center">Next Buses at CUH</h5>
+
+          <div class="table-responsive">
+            <table class="table table-sm align-middle text-center" id="bus-table">
+              <thead>
+                <tr>
+                  <th>Route</th>
+                  <th>Destination</th>
+                  <th>Scheduled</th>
+                  <th>Expected</th>
+                  <th>Delay</th>
+                  <th>Live</th>
+                </tr>
+              </thead>
+              <tbody id="bus-body">
+                <tr><td colspan="6">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <small id="bus-last-updated" style="color:gray;">Last updated: --</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Suggestion Box (now dynamic) -->
+    <div class="row">
+      <div class="col">
+        <div class="suggestion text-center" id="advice-box">
+          Heavy rain forecast today — car parks may be busy. Bring a coat and allow extra travel time.
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="d-flex justify-content-between mt-3">
+      <div class="footer-box">Powered by TFI / Open Meteo</div>
+      <div id="last-updated" class="footer-box">Last updated: --</div>
+    </footer>
+
+
+  </div>
 
   <!-- Modal for Hospital Selection -->
   <div class="modal fade" id="hospitalModal" tabindex="-1" aria-labelledby="hospitalModalLabel" aria-hidden="true">
@@ -160,8 +254,12 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body text-center">
-          <button class="btn btn-success m-2" onclick="setHospital('CUH')" data-bs-dismiss="modal">Cork University Hospital (CUH)</button>
-          <button class="btn btn-success m-2" onclick="setHospital('SFH')" data-bs-dismiss="modal">South Infirmary (SFH)</button>
+          <button class="btn btn-success m-2" onclick="setHospital('CUH')" data-bs-dismiss="modal">
+            Cork University Hospital (CUH)
+          </button>
+          <button class="btn btn-success m-2" onclick="setHospital('SFH')" data-bs-dismiss="modal">
+            South Infirmary (SFH)
+          </button>
         </div>
       </div>
     </div>
@@ -173,16 +271,42 @@
   <script>
     let currentHospital = "CUH";
 
+    // simple shared state so the advice box can look across all feeds
+    let latestWeather = null;
+    let latestBusStatus = null;
+    let latestCarparkStatus = null;
+
     // === Fetch Weather ===
     async function loadWeather(hospitalCode) {
       try {
         const response = await fetch(`http://localhost:5028/api/weather/${hospitalCode}`);
         if (!response.ok) throw new Error("Weather API not responding");
         const data = await response.json();
-        document.getElementById("weather-temp").textContent = `${data.temperature.toFixed(1)}°C`;
+
+        document.getElementById("weather-temp").textContent =
+          `${data.temperature.toFixed(1)}°C`;
         document.getElementById("weather-cond").textContent = data.condition;
-        document.getElementById("weather-uv").textContent = `UV Index: ${data.uv.toFixed(1)}`;
-        document.getElementById("last-updated").textContent = `Last updated: ${new Date(data.timestamp).toLocaleString()}`;
+        document.getElementById("weather-uv").textContent =
+          `UV Index: ${data.uv.toFixed(1)}`;
+        document.getElementById("last-updated").textContent =
+          `Last updated: ${new Date(data.timestamp).toLocaleString()}`;
+
+        // basic flags for advice engine
+        const cond = (data.condition || "").toLowerCase();
+        const isWet =
+          cond.includes("rain") ||
+          cond.includes("shower") ||
+          cond.includes("drizzle") ||
+          cond.includes("snow");
+
+        latestWeather = {
+          temp: data.temperature,
+          condition: data.condition,
+          uv: data.uv,
+          isWet: isWet
+        };
+
+        updateAdvice();
       } catch (err) {
         console.error("Error fetching weather:", err);
         document.getElementById("weather-temp").textContent = "--°C";
@@ -196,43 +320,78 @@
         const response = await fetch(`http://localhost:5030/api/bus/${hospitalCode}`);
         if (!response.ok) throw new Error("Bus API not responding");
 
-       const data = await response.json();
-const buses = data.results || data.buses || []; // handles either key name
-const tbody = document.getElementById("bus-body");
-tbody.innerHTML = "";
+        const data = await response.json();
+        const buses = data.results || data.buses || [];
+        const tbody = document.getElementById("bus-body");
+        tbody.innerHTML = "";
 
-if (buses.length === 0) {
-  tbody.innerHTML = "<tr><td colspan='6'>No upcoming buses found.</td></tr>";
-  return;
-}
+        if (buses.length === 0) {
+          tbody.innerHTML = "<tr><td colspan='6'>No upcoming buses found.</td></tr>";
+          latestBusStatus = null;
+          updateAdvice();
+          return;
+        }
 
-buses.forEach(bus => {
-  const row = document.createElement("tr");
+        let delayedCount = 0;
 
-  // colour code delay status
-  let delayColour = "text-success";
-  if (bus.delay_status?.includes("Delayed")) delayColour = "text-danger";
-  else if (bus.delay_status?.includes("Early")) delayColour = "text-warning";
+        buses.forEach(bus => {
+          const row = document.createElement("tr");
 
-  row.innerHTML = `
-    <td>${bus.route || ""}</td>
-    <td>${bus.destination || ""}</td>
-    <td>${bus.scheduled || ""}</td>
-    <td>${bus.expected || ""}</td>
-    <td class="${delayColour}">${bus.delay_status || ""}</td>
-    <td>${bus.live_hit || "N"}</td>
-  `;
+          const delayText = bus.delay_status || "";
+          let delayColour = "text-success";
+          const delayLower = delayText.toLowerCase();
 
-  tbody.appendChild(row);
-});
+          if (delayLower.includes("delay")) {
+            delayedCount++;
+            delayColour = "text-danger";
+          } else if (delayLower.includes("early")) {
+            delayColour = "text-warning";
+          }
 
+          row.innerHTML = `
+            <td>${bus.route || ""}</td>
+            <td>${bus.destination || ""}</td>
+            <td>${bus.scheduled || ""}</td>
+            <td>${bus.expected || ""}</td>
+            <td class="${delayColour}">${delayText}</td>
+            <td>${bus.live_hit || "N"}</td>
+          `;
 
-        document.getElementById("bus-last-updated").textContent =
-          `Last updated: ${new Date(data.timestamp).toLocaleTimeString()}`;
+          tbody.appendChild(row);
+        });
+
+        const busStamp = document.getElementById("bus-last-updated");
+        busStamp.textContent = `Last updated: ${new Date(data.timestamp).toLocaleTimeString()}`;
+
+        // trigger green flash animation
+        busStamp.classList.remove("bus-updated-flash");
+        void busStamp.offsetWidth;  // restart animation trick
+        busStamp.classList.add("bus-updated-flash");
+
+        // summarise bus status for the advice box
+        let level = "OK";
+        const ratio = delayedCount / buses.length;
+
+        if (delayedCount === 0) {
+          level = "OK";
+        } else if (ratio <= 0.33) {
+          level = "SOME_DELAYS";
+        } else {
+          level = "HEAVY_DELAYS";
+        }
+
+        latestBusStatus = {
+          total: buses.length,
+          delayed: delayedCount,
+          level: level
+        };
+
+        updateAdvice();
 
       } catch (err) {
         console.error("Error fetching bus times:", err);
-        document.getElementById("bus-body").innerHTML = "<tr><td colspan='6'>Error fetching data</td></tr>";
+        document.getElementById("bus-body").innerHTML =
+          "<tr><td colspan='6'>Error fetching data</td></tr>";
       }
     }
 
@@ -240,28 +399,183 @@ buses.forEach(bus => {
     function setHospital(hospitalCode) {
       currentHospital = hospitalCode;
       document.getElementById("selected-hospital").textContent = hospitalCode;
-      document.getElementById("bus-panel-title").textContent = `Next Buses at ${hospitalCode}`;
+      document.getElementById("bus-panel-title").textContent =
+        `Next Buses at ${hospitalCode}`;
+      document.getElementById("carpark-status").innerHTML =
+        "Loading car park data...";
+
+      // flip background based on hospital
+      document.body.classList.remove("cuh-bg", "sfh-bg", "default-bg");
       if (hospitalCode === "CUH") {
-        document.getElementById("carpark-status").innerHTML = 
-          "Car Park 1 CUH: 45/50<br>Car Park 2 CUH: 32/60<br>Car Park 3 CUH: 20/90";
+        document.body.classList.add("cuh-bg");
+      } else if (hospitalCode === "SFH") {
+        document.body.classList.add("sfh-bg");
       } else {
-        document.getElementById("carpark-status").innerHTML = 
-          "Car Park 1 SFH: 28/40<br>Car Park 2 SFH: 18/50";
+        document.body.classList.add("default-bg");
       }
+
+      // kick off data loads
       loadWeather(hospitalCode);
       loadBusTimes(hospitalCode);
+      loadCarparks(hospitalCode);
     }
+
+    // === Fetch Car Park Data ===
+    async function loadCarparks(hospitalCode) {
+      const output = document.getElementById("carpark-status");
+      output.innerHTML = "Loading car park data...";
+
+      try {
+        const response = await fetch(`http://localhost:5020/api/carparks/${hospitalCode}`);
+        if (!response.ok) {
+          throw new Error("Carpark API not responding");
+        }
+
+        const data = await response.json();
+        const carparks = data.carparks || [];
+
+        if (carparks.length === 0) {
+          output.innerHTML = "No car park data available.";
+          latestCarparkStatus = null;
+          updateAdvice();
+          return;
+        }
+
+        let html = "";
+        let sumOccupied = 0;
+        let sumTotal = 0;
+        let maxRatio = 0;
+
+        carparks.forEach(cp => {
+          const total = cp.total ?? cp.Total ?? 0;
+          const occupied = cp.occupied ?? cp.Occupied ?? 0;
+
+          sumOccupied += occupied;
+          sumTotal += total;
+          const ratio = total > 0 ? occupied / total : 0;
+          if (ratio > maxRatio) maxRatio = ratio;
+
+          html += `${cp.name || cp.Name}: ${occupied}/${total}<br>`;
+        });
+
+        output.innerHTML = html;
+
+        const avgRatio = sumTotal > 0 ? sumOccupied / sumTotal : 0;
+        let pressure = "LOW";
+
+        if (avgRatio > 0.85 || maxRatio > 0.9) {
+          pressure = "HIGH";
+        } else if (avgRatio > 0.6 || maxRatio > 0.75) {
+          pressure = "MEDIUM";
+        }
+
+        latestCarparkStatus = {
+          avgRatio: avgRatio,
+          maxRatio: maxRatio,
+          pressure: pressure
+        };
+
+        updateAdvice();
+
+      } catch (err) {
+        console.error("Error fetching car park data:", err);
+        output.innerHTML = "Error fetching car park data.";
+      }
+    }
+
+    // === Advice box logic ===
+    function updateAdvice() {
+      const box = document.getElementById("advice-box");
+      if (!box) return;
+
+      let text =
+        "Travel conditions look normal. Give yourself a small buffer and travel in your usual way.";
+
+      const hasWeather = latestWeather !== null;
+      const hasBus = latestBusStatus !== null;
+      const hasCarpark = latestCarparkStatus !== null;
+
+      if (hasWeather && hasCarpark && latestWeather.isWet &&
+          latestCarparkStatus.pressure === "HIGH") {
+        text =
+          "Heavy rain and very busy car parks are likely. Aim to arrive early and give yourself extra time to park.";
+      } else if (hasBus && hasCarpark &&
+                 latestBusStatus.level === "HEAVY_DELAYS" &&
+                 latestCarparkStatus.pressure !== "LOW") {
+        text =
+          "Bus services are heavily delayed and parking is tight. Leave early and pick the option that you know best today.";
+      } else if (hasBus && latestBusStatus.level === "HEAVY_DELAYS") {
+        text =
+          "Bus services are showing heavy delays. If you can, leave earlier than usual or use a different route.";
+      } else if (hasCarpark && latestCarparkStatus.pressure === "HIGH") {
+        text =
+          "Car parks are close to full most of the time. Think about using bus, drop-off or park-and-stride where it suits.";
+      } else if (hasWeather && latestWeather.isWet) {
+        text =
+          "Wet weather is forecast. Give yourself extra time for traffic and parking, and bring a good coat or umbrella.";
+      } else if (hasWeather && hasCarpark &&
+                 latestWeather.uv >= 5 &&
+                 latestCarparkStatus.pressure === "LOW") {
+        text =
+          "Weather looks dry and bright with good parking. On a fine day like this, bus or park-and-stride are good options.";
+      }
+
+      box.textContent = text;
+    }
+
+    function showUpdateToast() {
+      const box = document.getElementById("updateToast");
+      const fill = document.getElementById("updateToastFill");
+
+      // Reset the bar instantly
+      fill.style.width = "0%";
+
+      // Slide in
+      box.classList.add("show");
+
+      // Start filling animation (slight delay so CSS sees the reset)
+      setTimeout(() => {
+        fill.style.width = "100%";
+      }, 50);
+
+      // Slide out after 2 seconds
+      setTimeout(() => {
+        box.classList.remove("show");
+      }, 2000);
+    }
+
 
     // === Auto-load CUH on start ===
     window.onload = () => {
       setHospital("CUH");
 
-      // Refresh every 60 seconds to match backend update
+      // Weather updates once per minute
       setInterval(() => {
         loadWeather(currentHospital);
+      }, 60000);
+
+      // Bus updates once per minute
+      setInterval(() => {
         loadBusTimes(currentHospital);
       }, 60000);
-        };
+
+      // Car park once per minute
+      setInterval(() => {
+        loadCarparks(currentHospital);
+      }, 60000);
+
+      // Re-evaluate advice once per minute using the latest snapshots
+      setInterval(() => {
+        updateAdvice();
+      }, 60000);
+
+      //show data update alert
+      setInterval(() => {
+        showUpdateToast();
+      }, 60000); 
+    };
+
+    
   </script>
 
 </body>
