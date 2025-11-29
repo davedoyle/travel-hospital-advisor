@@ -167,6 +167,16 @@ async Task ImportLiveFeedToSQLite()
 
     tx.Commit();
     Console.WriteLine($"[Importer] Inserted {inserted} live rows.");
+
+    try
+    {
+        using var hb = new HttpClient();
+        await hb.PostAsJsonAsync("http://localhost:5199/heartbeat",
+            new { Service = "tfi", Message = $"Inserted {inserted}" });
+    }
+    catch { }
+
+
 }
 
 // -------------------------------------------

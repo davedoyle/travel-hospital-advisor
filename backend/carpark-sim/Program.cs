@@ -74,7 +74,7 @@ async Task RunSimulationTick(string connString)
 
     // get all carparks
     var cmd = conn.CreateCommand();
-    cmd.CommandText = "SELECT carpark_id, total_spaces, occupied_spaces FROM carpark;";
+    cmd.CommandText = "SELECT carpark_id, total_spaces, occupied_spaces FROM carpark where is_active = 1;";
 
     using var reader = await cmd.ExecuteReaderAsync();
 
@@ -106,6 +106,15 @@ async Task RunSimulationTick(string connString)
     }
 
     Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Simulation tick complete.");
+
+    try
+        {
+            using var hb = new HttpClient();
+            await hb.PostAsJsonAsync("http://localhost:5199/heartbeat",
+                new { Service = "sim", Message = "Tick" });
+        }
+        catch { }
+
 }
 
 
@@ -133,7 +142,8 @@ async Task UpdateCarpark(SqliteConnection conn, int carparkId, int newOccupied)
         UPDATE carpark
         SET occupied_spaces = $occ,
             last_updated = CURRENT_TIMESTAMP
-        WHERE carpark_id = $id;
+        WHERE carpark_id = $id
+        and is_active = 1;
     ";
 
     cmd.Parameters.AddWithValue("$occ", newOccupied);
