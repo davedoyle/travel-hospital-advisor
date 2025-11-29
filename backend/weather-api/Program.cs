@@ -5,7 +5,8 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Hosting;
-//using Newtonsoft.Json.Linq; --no longer needed
+using System.Net.Http.Json;
+
 
 
 
@@ -120,12 +121,42 @@ try
         uv,
         timestamp
          };
+        
+        try
+        {
+            using var hb = new HttpClient();
+            await hb.PostAsJsonAsync("http://localhost:5199/heartbeat",
+                new { Service = "weather", Message = "Fetched" });
+        }
+        catch {}
 
         return Results.Json(result);
     }
     catch (Exception ex)
     {
         return Results.Problem($"Failed to fetch weather data: {ex.Message}");
+    }
+});
+
+// --------------------------------------------------------------
+// Automatic heartbeat every 60 seconds so launcher sees it alive
+// --------------------------------------------------------------
+var hbTimer = new PeriodicTimer(TimeSpan.FromSeconds(60));
+
+_ = Task.Run(async () =>
+{
+    while (await hbTimer.WaitForNextTickAsync())
+    {
+        try
+        {
+            using var hb = new HttpClient();
+            await hb.PostAsJsonAsync("http://localhost:5199/heartbeat",
+                new { Service = "weather", Message = "Timer" });
+        }
+        catch 
+        {
+            // ignore – launcher might not be running
+        }
     }
 });
 

@@ -1,42 +1,115 @@
 ﻿using System.Diagnostics;
 using System.Net.Http;
+using Microsoft.Extensions.Configuration;
 
 // ===============================================
 // Travel to Hospital Advisor - Service Launcher
-// Starts all backend services and monitors them
+// Starts the backend services and keeps an eye on them
 // ===============================================
 
-// ------------------------------------------------
-// TOP-LEVEL STATEMENTS MUST COME FIRST
-// ------------------------------------------------
+// Load config the normal way for a console app
+var config = new ConfigurationBuilder()
+    .SetBasePath(Directory.GetCurrentDirectory())
+    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+    .Build();
 
-// We will run this from backend/service-launcher
-// So project paths are relative to this folder.
+// Pull paths from config
+LauncherState.MainDbPath = config["Paths:MainDb"] ?? "";
+LauncherState.TfiDbPath  = config["Paths:TfiDb"] ?? "";
+
+// Pull ports from config
+LauncherState.AdminApiPort   = int.TryParse(config["Ports:AdminApi"], out var p1) ? p1 : 5050;
+LauncherState.WeatherApiPort = int.TryParse(config["Ports:WeatherApi"], out var p2) ? p2 : 5028;
+LauncherState.TfiApiPort     = int.TryParse(config["Ports:TfiApi"], out var p3) ? p3 : 5030;
+LauncherState.CarparkApiPort = int.TryParse(config["Ports:CarparkApi"], out var p4) ? p4 : 5040;
+
+// Start time stamp for uptime later
+LauncherState.StartTimeUtc = DateTime.UtcNow;
+
+// simple http listener for status checks
+var statusApp = WebApplication.CreateBuilder().Build();
+
+statusApp.MapGet("/", () =>
+{
+    return Results.Ok(new
+    {
+        startTimeUtc = LauncherState.StartTimeUtc,
+        mainDb = LauncherState.MainDbPath,
+        tfiDb = LauncherState.TfiDbPath,
+        adminPort = LauncherState.AdminApiPort,
+        weatherPort = LauncherState.WeatherApiPort,
+        tfiPort = LauncherState.TfiApiPort,
+        carparkPort = LauncherState.CarparkApiPort,
+        weatherStatus = LauncherState.WeatherStatus,
+        tfiStatus = LauncherState.TfiStatus,
+        simStatus = LauncherState.SimulationStatus,
+        lastWeather = LauncherState.LastWeatherUpdate,
+        lastTfi = LauncherState.LastTfiUpdate
+    });
+});
+
+// ----------------------------------------------
+// check endpoint (weather, tfi, sim)
+// ----------------------------------------------
+statusApp.MapPost("/heartbeat", (HeartbeatUpdate hb) =>
+{
+    var now = DateTime.UtcNow;
+
+    switch (hb.Service)
+    {
+        case "weather":
+            LauncherState.WeatherStatus = "OK";
+            LauncherState.LastWeatherUpdate = now.ToString("yyyy-MM-dd HH:mm:ss");
+            break;
+
+        case "tfi":
+            LauncherState.TfiStatus = "OK";
+            LauncherState.LastTfiUpdate = now.ToString("yyyy-MM-dd HH:mm:ss");
+            break;
+
+        case "sim":
+            LauncherState.SimulationStatus = hb.Message ?? "Running";
+            break;
+    }
+
+    return Results.Ok();
+});
+
+// run listener
+_ = Task.Run(() => statusApp.RunAsync("http://localhost:5199"));
+
+// All services we want to run
 var services = new List<ServiceInfo>
 {
     new ServiceInfo
     {
         Name = "weather-api",
         ProjectPath = @"..\weather-api\weather-api.csproj",
-        HealthUrl = "http://localhost:5028/"      // root check
+        HealthUrl = $"http://localhost:{LauncherState.WeatherApiPort}/"
     },
     new ServiceInfo
     {
         Name = "tfi-api",
         ProjectPath = @"..\tfi-api\tfi-api.csproj",
-        HealthUrl = "http://localhost:5030/"      // root check
+        HealthUrl = $"http://localhost:{LauncherState.TfiApiPort}/"
     },
     new ServiceInfo
     {
         Name = "carpark-sim",
         ProjectPath = @"..\carpark-sim\carpark-sim.csproj",
-        HealthUrl = null                          // background worker, no HTTP check
+        HealthUrl = null        // background worker, no HTTP endpoint
     },
     new ServiceInfo
     {
         Name = "carpark-api",
         ProjectPath = @"..\carpark-api\carpark-api.csproj",
-        HealthUrl = "http://localhost:5040/"      // root check
+        HealthUrl = $"http://localhost:{LauncherState.CarparkApiPort}/"
+    },
+    new ServiceInfo
+    {
+        Name = "admin-api",
+        ProjectPath = @"..\admin-api\admin-api.csproj",
+        HealthUrl = $"http://localhost:{LauncherState.AdminApiPort}/"
     }
 };
 
@@ -45,61 +118,69 @@ Console.WriteLine(" Travel to Hospital Advisor - Service Launcher ");
 Console.WriteLine("===============================================");
 Console.WriteLine("Working directory: " + Directory.GetCurrentDirectory());
 Console.WriteLine();
+Console.WriteLine("Main DB : " + LauncherState.MainDbPath);
+Console.WriteLine("TFI  DB : " + LauncherState.TfiDbPath);
+Console.WriteLine("Ports   : Admin " + LauncherState.AdminApiPort +
+                  ", Weather " + LauncherState.WeatherApiPort +
+                  ", TFI " + LauncherState.TfiApiPort +
+                  ", Carpark " + LauncherState.CarparkApiPort);
+Console.WriteLine();
 
-// Start all services
+// Start everything
 foreach (var svc in services)
 {
     LauncherHelpers.StartService(svc);
 }
 
-// Start health check loop in the background
+// Background health checks
 _ = Task.Run(() => LauncherHelpers.HealthCheckLoopAsync(services));
 
-// Handle Ctrl+C so we can stop all services cleanly
+// Handle Ctrl+C properly
 Console.CancelKeyPress += (sender, eventArgs) =>
 {
     Console.WriteLine();
     Console.WriteLine("Stopping all services...");
     foreach (var svc in services)
-    {
         LauncherHelpers.TryStopService(svc);
-    }
 
     eventArgs.Cancel = false;
 };
 
 Console.WriteLine();
-Console.WriteLine("All services started (or attempted).");
+Console.WriteLine("All services started.");
 Console.WriteLine("Press Ctrl+C to stop everything.");
 Console.WriteLine();
+
+
+
+
 
 await Task.Delay(Timeout.Infinite);
 
 
+
+
 // ------------------------------------------------
-// EVERYTHING BELOW THIS POINT MUST BE DECLARATIONS
+// helper stuff
 // ------------------------------------------------
 
-// ===============================================
-// Small model for each service we want to run
-// ===============================================
+public record HeartbeatUpdate(
+    string Service,
+    string? Message
+);
+
+
 class ServiceInfo
 {
     public string Name { get; set; } = "";
     public string ProjectPath { get; set; } = "";
-    public string? HealthUrl { get; set; }          // null = no HTTP health check
+    public string? HealthUrl { get; set; }
     public Process? Process { get; set; }
 }
 
-
-// ===============================================
-// Helper methods must be inside a class
-// ===============================================
 static class LauncherHelpers
 {
-    // -----------------------------------------------
     // Start a service
-    // -----------------------------------------------
     public static void StartService(ServiceInfo svc)
     {
         try
@@ -126,22 +207,13 @@ static class LauncherHelpers
             process.OutputDataReceived += (_, e) =>
             {
                 if (!string.IsNullOrWhiteSpace(e.Data))
-                {
                     Console.WriteLine($"[{svc.Name}] {e.Data}");
-                }
             };
 
             process.ErrorDataReceived += (_, e) =>
             {
                 if (!string.IsNullOrWhiteSpace(e.Data))
-                {
                     Console.WriteLine($"[{svc.Name}][ERR] {e.Data}");
-                }
-            };
-
-            process.Exited += (_, _) =>
-            {
-                Console.WriteLine($"[{svc.Name}] Process exited with code {process.ExitCode}");
             };
 
             if (process.Start())
@@ -162,21 +234,15 @@ static class LauncherHelpers
         }
     }
 
-    // -----------------------------------------------
-    // Stop a service
-    // -----------------------------------------------
+    // Try stop
     public static void TryStopService(ServiceInfo svc)
     {
         try
         {
-            if (svc.Process == null)
-                return;
-
-            if (svc.Process.HasExited)
+            if (svc.Process == null || svc.Process.HasExited)
                 return;
 
             Console.WriteLine($"[{svc.Name}] Stopping...");
-
             svc.Process.Kill(entireProcessTree: true);
             svc.Process.WaitForExit(5000);
         }
@@ -184,18 +250,13 @@ static class LauncherHelpers
         {
             Console.WriteLine($"[{svc.Name}] ERROR stopping service: {ex.Message}");
         }
-        finally
-        {
-            svc.Process = null;
-        }
+        finally { svc.Process = null; }
     }
 
-    // -----------------------------------------------
-    // Health Check Loop
-    // -----------------------------------------------
+    // Loop and watch everything
     public static async Task HealthCheckLoopAsync(List<ServiceInfo> services)
     {
-        using var httpClient = new HttpClient();
+        using var http = new HttpClient();
 
         while (true)
         {
@@ -220,11 +281,12 @@ static class LauncherHelpers
 
                 try
                 {
-                    var response = await httpClient.GetAsync(svc.HealthUrl);
-                    if (response.IsSuccessStatusCode)
+                    var result = await http.GetAsync(svc.HealthUrl);
+
+                    if (result.IsSuccessStatusCode)
                         Console.WriteLine($"[health] {svc.Name}: OK");
                     else
-                        Console.WriteLine($"[health] {svc.Name}: HTTP {(int)response.StatusCode}");
+                        Console.WriteLine($"[health] {svc.Name}: HTTP {(int)result.StatusCode}");
                 }
                 catch (Exception ex)
                 {
@@ -235,4 +297,25 @@ static class LauncherHelpers
             await Task.Delay(20000);
         }
     }
+}
+
+// Shared launcher-level info for the admin-api to query later
+public static class LauncherState
+{
+    public static DateTime StartTimeUtc;
+    public static string MainDbPath = "";
+    public static string TfiDbPath = "";
+
+    public static int AdminApiPort;
+    public static int WeatherApiPort;
+    public static int TfiApiPort;
+    public static int CarparkApiPort;
+
+    // These will be updated later once we wire the endpoints
+    public static string WeatherStatus = "Unknown";
+    public static string TfiStatus = "Unknown";
+    public static string SimulationStatus = "Unknown";
+
+    public static string LastWeatherUpdate = "--";
+    public static string LastTfiUpdate = "--";
 }

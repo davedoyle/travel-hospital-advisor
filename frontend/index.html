@@ -142,6 +142,10 @@
   </style>
 </head>
 
+<body class="default-bg">
+
+  
+
 <div id="updateToast" class="update-toast">
   All data updated
   <div class="update-toast-progress">
@@ -150,8 +154,6 @@
 </div>
 
 
-
-<body class="default-bg">
   <div class="page-wrapper container">
 
     <!-- Header -->
@@ -426,7 +428,7 @@
       output.innerHTML = "Loading car park data...";
 
       try {
-        const response = await fetch(`http://localhost:5020/api/carparks/${hospitalCode}`);
+        const response = await fetch(`http://localhost:5040/api/carparks/${hospitalCode}`);
         if (!response.ok) {
           throw new Error("Carpark API not responding");
         }
@@ -509,7 +511,7 @@
           "Bus services are showing heavy delays. If you can, leave earlier than usual or use a different route.";
       } else if (hasCarpark && latestCarparkStatus.pressure === "HIGH") {
         text =
-          "Car parks are close to full most of the time. Think about using bus, drop-off or park-and-stride where it suits.";
+          "Car parks are close to full most of the time. Think about using bus, drop-off or park-and-ride where it suits.";
       } else if (hasWeather && latestWeather.isWet) {
         text =
           "Wet weather is forecast. Give yourself extra time for traffic and parking, and bring a good coat or umbrella.";
@@ -517,7 +519,7 @@
                  latestWeather.uv >= 5 &&
                  latestCarparkStatus.pressure === "LOW") {
         text =
-          "Weather looks dry and bright with good parking. On a fine day like this, bus or park-and-stride are good options.";
+          "Weather looks dry and bright with good parking. On a fine day like this, bus or park-and-ride are good options.";
       }
 
       box.textContent = text;

@@ -75,6 +75,7 @@ app.MapGet("/api/carparks/{hospitalCode}", async (string hospitalCode) =>
             FROM carpark c
             JOIN health_org h ON c.heorg_id = h.heorg_id
             WHERE c.heorg_id = @heorg
+            and c.is_active = 1
             ORDER BY c.carpark_name;
         ";
 
@@ -130,7 +131,7 @@ app.MapGet("/api/carparks/{hospitalCode}", async (string hospitalCode) =>
     return Results.Json(response);
 });
 
-app.Run("http://localhost:5020");
+app.Run("http://localhost:5040");
 
 
 // ---------------------------------------
