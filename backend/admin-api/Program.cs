@@ -310,6 +310,67 @@ app.MapPut("/admin/carparks/{id:int}", async (HttpContext ctx, int id, EditCarpa
 
 
 // -----------------------------------------------------------------------------
+// SIMULATION CONTROL - PROXY TO CARPARK-SIM API (port 5070)
+// -----------------------------------------------------------------------------
+
+const string simBaseUrl = "http://localhost:5070";
+
+// Helper to call sim API with proper admin token
+async Task<IResult> ProxyToSim(HttpRequest request, string simEndpoint)
+{
+    try
+    {
+        using var client = new HttpClient();
+
+        // Pass the admin token along
+        if (request.Headers.TryGetValue("x-admin-auth", out var token))
+        {
+            client.DefaultRequestHeaders.Add("x-admin-auth", token.ToString());
+        }
+
+        var response = await client.PostAsync($"{simBaseUrl}{simEndpoint}", null);
+        var json = await response.Content.ReadAsStringAsync();
+
+        if (response.IsSuccessStatusCode)
+            return Results.Content(json, "application/json");
+
+        return Results.Problem($"Simulation service returned error: {response.StatusCode}");
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error contacting simulation: {ex.Message}");
+    }
+}
+
+// START
+app.MapPost("/admin/sim/start", async (HttpRequest req) =>
+    await ProxyToSim(req, "/sim/start")
+);
+
+// PAUSE
+app.MapPost("/admin/sim/pause", async (HttpRequest req) =>
+    await ProxyToSim(req, "/sim/pause")
+);
+
+// SINGLE TICK
+app.MapPost("/admin/sim/tick", async (HttpRequest req) =>
+    await ProxyToSim(req, "/sim/tick")
+);
+
+// FAST FORWARD
+app.MapPost("/admin/sim/fastforward", async (HttpRequest req) =>
+    await ProxyToSim(req, "/sim/fastforward")
+);
+
+// RESET
+app.MapPost("/admin/sim/reset", async (HttpRequest req) =>
+    await ProxyToSim(req, "/sim/reset")
+);
+
+
+
+
+// -----------------------------------------------------------------------------
 // Stub admin endpoints — these are placeholders
 // -----------------------------------------------------------------------------
 
@@ -318,30 +379,7 @@ app.MapPut("/admin/carparks/{id:int}/status", (int id) =>
     return Results.Ok(new { message = $"Change status for carpark {id} not implemented yet." });
 });
 
-app.MapPost("/admin/sim/start", () =>
-{
-    return Results.Ok(new { message = "Simulation start not implemented yet." });
-});
 
-app.MapPost("/admin/sim/pause", () =>
-{
-    return Results.Ok(new { message = "Simulation pause not implemented yet." });
-});
-
-app.MapPost("/admin/sim/tick", () =>
-{
-    return Results.Ok(new { message = "Simulation single tick not implemented yet." });
-});
-
-app.MapPost("/admin/sim/fastforward", () =>
-{
-    return Results.Ok(new { message = "Simulation fast forward not implemented yet." });
-});
-
-app.MapPost("/admin/sim/reset", () =>
-{
-    return Results.Ok(new { message = "Simulation reset not implemented yet." });
-});
 
 // -----------------------------------------------------------------------------
 // System info endpoint
