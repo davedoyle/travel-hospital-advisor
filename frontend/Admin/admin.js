@@ -225,6 +225,17 @@ async function loadCarparksTable() {
     }
 }
 
+function addSimLog(text) {
+    const box = document.getElementById("simLogBox");
+    if (!box) return;
+
+    const line = document.createElement("div");
+    line.textContent = `${new Date().toLocaleTimeString()} - ${text}`;
+    box.appendChild(line);
+    box.scrollTop = box.scrollHeight;
+}
+
+
 
 // =====================================================
 // MAIN PAGE BOOTSTRAP
@@ -288,29 +299,33 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    
 
     // ==========================
-    // Simulation button placeholders
-    // ==========================
-    document.getElementById("btnResetSimulation").addEventListener("click", () => {
-        alert("Reset Simulation will call /admin/sim/reset (to be implemented).");
-    });
+// REAL Simulation Handlers
+// ==========================
+async function simCommand(endpoint) {
+    try {
+        const res = await adminFetch(`/admin/sim/${endpoint}`, { method: "POST" });
 
-    document.getElementById("btnSimStart").addEventListener("click", () => {
-        alert("Start Simulation will call /admin/sim/start (to be implemented).");
-    });
+        if (!res.ok) {
+            addSimLog(`ERROR: ${endpoint}`);
+            return;
+        }
 
-    document.getElementById("btnSimPause").addEventListener("click", () => {
-        alert("Pause Simulation will call /admin/sim/pause (to be implemented).");
-    });
+        const data = await res.json();
+        addSimLog(data.message);
+    } catch (err) {
+        console.error("Simulation error:", err);
+        addSimLog(`Failed: ${endpoint}`);
+    }
+}
 
-    document.getElementById("btnSimTick").addEventListener("click", () => {
-        alert("Single Tick will call /admin/sim/tick (to be implemented).");
-    });
-
-    document.getElementById("btnSimFastForward").addEventListener("click", () => {
-        alert("Fast Forward will call /admin/sim/fastforward (to be implemented).");
-    });
+    document.getElementById("btnSimStart").addEventListener("click", () => simCommand("start"));
+    document.getElementById("btnSimPause").addEventListener("click", () => simCommand("pause"));
+    document.getElementById("btnSimTick").addEventListener("click", () => simCommand("tick"));
+    document.getElementById("btnSimFastForward").addEventListener("click", () => simCommand("fastforward"));
+    document.getElementById("btnResetSimulation").addEventListener("click", () => simCommand("reset"));
 
 
     // ==========================
@@ -364,6 +379,66 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // ==========================
+// STATUS BADGE POLLING
+// ==========================
+function updateBadges() {
+    fetch(LAUNCHER)
+        .then(r => r.json())
+        .then(data => {
+            // TFI badge
+            const badgeTfi = document.getElementById("badgeTfi");
+            if (data.tfiStatus === "OK") {
+                badgeTfi.textContent = "TFI OK";
+                badgeTfi.className = "status-badge status-ok";
+            } else {
+                badgeTfi.textContent = "TFI DOWN";
+                badgeTfi.className = "status-badge status-warn";
+            }
+
+            // Weather badge
+            const badgeWeather = document.getElementById("badgeWeather");
+            if (data.weatherStatus === "OK") {
+                badgeWeather.textContent = "Weather OK";
+                badgeWeather.className = "status-badge status-ok";
+            } else {
+                badgeWeather.textContent = "Weather DOWN";
+                badgeWeather.className = "status-badge status-warn";
+            }
+
+            // Simulation badge
+            const badgeSim = document.getElementById("badgeSim");
+            const simStatus = data.simStatus ?? "Unknown";
+
+            if (simStatus.includes("Running")) {
+                badgeSim.textContent = "Simulation Running";
+                badgeSim.className = "status-badge status-ok";
+            } else {
+                badgeSim.textContent = "Simulation Paused";
+                badgeSim.className = "status-badge status-warn";
+            }
+        })
+        .catch(() => {
+            console.warn("Launcher check failed");
+
+            // --- Force badges red on failure ---
+            const badgeTfi = document.getElementById("badgeTfi");
+            badgeTfi.textContent = "TFI DOWN";
+            badgeTfi.className = "status-badge status-warn";
+
+            const badgeWeather = document.getElementById("badgeWeather");
+            badgeWeather.textContent = "Weather DOWN";
+            badgeWeather.className = "status-badge status-warn";
+
+            const badgeSim = document.getElementById("badgeSim");
+            badgeSim.textContent = "Simulation DOWN";
+            badgeSim.className = "status-badge status-warn";
+        });
+    }
+
+    // start periodic badge updates
+    setInterval(updateBadges, 3000);
+    updateBadges();
 
 
 

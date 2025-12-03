@@ -6,8 +6,8 @@ using System.IO;
 
 // ------------------------------------------------------------
 // Carpark Simulation Engine
-// This runs every 5 seconds and updates all carparks in the DB.
-// Behaviour changes depending on the real machine time.
+// Background loop runs every 5 seconds while SimulationRunning = true.
+// Admin page can Start, Pause, Single Tick, Fast Forward, or Reset.
 // ------------------------------------------------------------
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,9 +24,87 @@ if (string.IsNullOrWhiteSpace(dbPath))
 
 var connectionString = $"Data Source={dbPath};";
 
+// ------------------------------
+// NEW: Simulation State Flags
+// ------------------------------
+bool SimulationRunning = true;             // background loop toggle
+bool ForceSingleTick = false;              // for /sim/tick
+int FastForwardCount = 0;                  // for /sim/fastforward
+
 var app = builder.Build();
 
-// start simulation loop in background
+// ------------------------------------------------------------
+// NEW: Simulation Control Endpoints
+// ------------------------------------------------------------
+
+// return simple status for Admin badge
+app.MapGet("/sim/status", () =>
+{
+    return Results.Json(new
+    {
+        running = SimulationRunning,
+        status = SimulationRunning ? "Simulation Running" : "Simulation Paused"
+    });
+});
+
+// start the background simulation
+app.MapPost("/sim/start", () =>
+{
+    SimulationRunning = true;
+    Console.WriteLine("[SIM] Simulation set to RUNNING");
+    return Results.Ok(new { message = "Simulation Running" });
+});
+
+// pause background simulation
+app.MapPost("/sim/pause", () =>
+{
+    SimulationRunning = false;
+    Console.WriteLine("[SIM] Simulation set to PAUSED");
+    return Results.Ok(new { message = "Simulation Paused" });
+});
+
+// trigger exactly one tick, even when paused
+app.MapPost("/sim/tick", () =>
+{
+    ForceSingleTick = true;
+    Console.WriteLine("[SIM] Manual single tick requested");
+    return Results.Ok(new { message = "Single Tick Executed" });
+});
+
+// trigger 10 ticks quickly
+app.MapPost("/sim/fastforward", () =>
+{
+    FastForwardCount = 10;
+    Console.WriteLine("[SIM] Fast forward 10 ticks requested");
+    return Results.Ok(new { message = "Fast Forward Started" });
+});
+
+// reset DB: set occupied_spaces to zero, clear logs
+app.MapPost("/sim/reset", async () =>
+{
+    using var conn = new SqliteConnection(connectionString);
+    await conn.OpenAsync();
+
+    var cmd = conn.CreateCommand();
+    cmd.CommandText = @"
+        UPDATE carpark
+        SET occupied_spaces = 0,
+            last_updated = CURRENT_TIMESTAMP;
+
+        DELETE FROM carpark_log;
+    ";
+    await cmd.ExecuteNonQueryAsync();
+
+    Console.WriteLine("[SIM] Simulation reset to zero.");
+    return Results.Ok(new { message = "Simulation Reset Complete" });
+});
+
+// root endpoint for health checks
+app.MapGet("/", () => "Carpark Simulation Engine running with admin controls.");
+
+// ------------------------------------------------------------
+// BACKGROUND SIMULATION LOOP
+// ------------------------------------------------------------
 _ = Task.Run(async () =>
 {
     Console.WriteLine("Carpark Simulation Engine starting…");
@@ -35,23 +113,40 @@ _ = Task.Run(async () =>
     {
         try
         {
-            await RunSimulationTick(connectionString);
+            if (SimulationRunning)
+            {
+                await RunSimulationTick(connectionString);
+                SendHeartbeat("Simulation Running");
+            }
+
+            // Manual single tick
+            if (ForceSingleTick)
+            {
+                ForceSingleTick = false;
+                await RunSimulationTick(connectionString);
+                SendHeartbeat("Single Tick");
+            }
+
+            // Manual fast-forward ticks
+            while (FastForwardCount > 0)
+            {
+                FastForwardCount--;
+                await RunSimulationTick(connectionString);
+                SendHeartbeat("FastForward Tick");
+            }
         }
         catch (Exception ex)
         {
             Console.WriteLine("Simulation error: " + ex.Message);
         }
 
+        // Sleep only if not fast-forwarding
         await Task.Delay(5000);
     }
 });
 
-app.MapGet("/", () => "Carpark Simulation Engine is running.");
-app.Run();
-
-
 // ------------------------------------------------------------
-// SIMULATION LOGIC
+// SIMULATION LOGIC 
 // ------------------------------------------------------------
 async Task RunSimulationTick(string connString)
 {
@@ -63,7 +158,6 @@ async Task RunSimulationTick(string connString)
     using var conn = new SqliteConnection(connString);
     await conn.OpenAsync();
 
-    // --- NOLOCK-style behaviour for SQLite ---
     var cfg = conn.CreateCommand();
     cfg.CommandText = @"
         PRAGMA journal_mode = WAL;
@@ -72,9 +166,8 @@ async Task RunSimulationTick(string connString)
     ";
     await cfg.ExecuteNonQueryAsync();
 
-    // get all carparks
     var cmd = conn.CreateCommand();
-    cmd.CommandText = "SELECT carpark_id, total_spaces, occupied_spaces FROM carpark where is_active = 1;";
+    cmd.CommandText = "SELECT carpark_id, total_spaces, occupied_spaces FROM carpark WHERE is_active = 1;";
 
     using var reader = await cmd.ExecuteReaderAsync();
 
@@ -105,36 +198,19 @@ async Task RunSimulationTick(string connString)
         await InsertLog(conn, item.id, item.occupied, newOccupied);
     }
 
-    Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Simulation tick complete.");
-
-    try
-        {
-            using var hb = new HttpClient();
-            await hb.PostAsJsonAsync("http://localhost:5199/heartbeat",
-                new { Service = "sim", Message = "Tick" });
-        }
-        catch { }
-
+    Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Tick complete.");
 }
 
-
-// ------------------------------------------------------------
-// Change rate based on real time
-// ------------------------------------------------------------
 int DetermineChangeRate(int hour)
 {
     if (hour >= 9 && hour < 13) return 3;
     if (hour >= 12 && hour < 16) return -2;
     if (hour >= 19 && hour < 20) return 4;
     if (hour >= 20 && hour < 23) return -3;
-    if (hour >= 23 || hour < 7)  return 0;
+    if (hour >= 23 || hour < 7) return 0;
     return 1;
 }
 
-
-// ------------------------------------------------------------
-// Update carpark record
-// ------------------------------------------------------------
 async Task UpdateCarpark(SqliteConnection conn, int carparkId, int newOccupied)
 {
     var cmd = conn.CreateCommand();
@@ -142,20 +218,14 @@ async Task UpdateCarpark(SqliteConnection conn, int carparkId, int newOccupied)
         UPDATE carpark
         SET occupied_spaces = $occ,
             last_updated = CURRENT_TIMESTAMP
-        WHERE carpark_id = $id
-        and is_active = 1;
+        WHERE carpark_id = $id AND is_active = 1;
     ";
-
     cmd.Parameters.AddWithValue("$occ", newOccupied);
     cmd.Parameters.AddWithValue("$id", carparkId);
 
     await cmd.ExecuteNonQueryAsync();
 }
 
-
-// ------------------------------------------------------------
-// Log changes
-// ------------------------------------------------------------
 async Task InsertLog(SqliteConnection conn, int carparkId, int oldValue, int newValue)
 {
     string action;
@@ -173,10 +243,26 @@ async Task InsertLog(SqliteConnection conn, int carparkId, int oldValue, int new
         INSERT INTO carpark_log (carpark_id, action, detail, admin_id)
         VALUES ($cid, $act, $det, NULL);
     ";
-
     cmd.Parameters.AddWithValue("$cid", carparkId);
     cmd.Parameters.AddWithValue("$act", action);
     cmd.Parameters.AddWithValue("$det", detail);
 
     await cmd.ExecuteNonQueryAsync();
 }
+
+// -----------------------------------
+// Send heartbeat to launcher
+// -----------------------------------
+async void SendHeartbeat(string status)
+{
+    try
+    {
+        using var hb = new HttpClient();
+        await hb.PostAsJsonAsync("http://localhost:5199/heartbeat",
+            new { Service = "sim", Message = status });
+    }
+    catch { }
+}
+
+// Run web API on a fixed port
+app.Run("http://localhost:5070");
