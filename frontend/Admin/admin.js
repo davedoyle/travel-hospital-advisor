@@ -1,4 +1,4 @@
-// Simple admin script for Travel to Hospital Advisor – Admin page
+//admin script for Travel to Hospital Advisor – Admin page
 
 const ADMIN_API_BASE = "http://localhost:5050"; 
 let adminToken = null;
@@ -62,9 +62,9 @@ function restoreTokenIfPresent() {
 }
 
 
-// =====================================================
+// ====================
 // CARPARK HELPERS
-// =====================================================
+// ====================
 
 // open modal for adding
 function openAddCarparkModal() {
@@ -302,24 +302,24 @@ document.addEventListener("DOMContentLoaded", () => {
     
 
     // ==========================
-// REAL Simulation Handlers
-// ==========================
-async function simCommand(endpoint) {
-    try {
-        const res = await adminFetch(`/admin/sim/${endpoint}`, { method: "POST" });
+    // Simulation Handlers
+    // ==========================
+    async function simCommand(endpoint) {
+        try {
+            const res = await adminFetch(`/admin/sim/${endpoint}`, { method: "POST" });
 
-        if (!res.ok) {
-            addSimLog(`ERROR: ${endpoint}`);
-            return;
+            if (!res.ok) {
+                addSimLog(`ERROR: ${endpoint}`);
+                return;
+            }
+
+            const data = await res.json();
+            addSimLog(data.message);
+        } catch (err) {
+            console.error("Simulation error:", err);
+            addSimLog(`Failed: ${endpoint}`);
         }
-
-        const data = await res.json();
-        addSimLog(data.message);
-    } catch (err) {
-        console.error("Simulation error:", err);
-        addSimLog(`Failed: ${endpoint}`);
     }
-}
 
     document.getElementById("btnSimStart").addEventListener("click", () => simCommand("start"));
     document.getElementById("btnSimPause").addEventListener("click", () => simCommand("pause"));
@@ -380,65 +380,65 @@ async function simCommand(endpoint) {
     });
 
     // ==========================
-// STATUS BADGE POLLING
-// ==========================
-function updateBadges() {
-    fetch(LAUNCHER)
-        .then(r => r.json())
-        .then(data => {
-            // TFI badge
-            const badgeTfi = document.getElementById("badgeTfi");
-            if (data.tfiStatus === "OK") {
-                badgeTfi.textContent = "TFI OK";
-                badgeTfi.className = "status-badge status-ok";
-            } else {
+    // STATUS BADGE POLLING
+    // ==========================
+    function updateBadges() {
+        fetch(LAUNCHER)
+            .then(r => r.json())
+            .then(data => {
+                // TFI badge
+                const badgeTfi = document.getElementById("badgeTfi");
+                if (data.tfiStatus === "OK") {
+                    badgeTfi.textContent = "TFI OK";
+                    badgeTfi.className = "status-badge status-ok";
+                } else {
+                    badgeTfi.textContent = "TFI DOWN";
+                    badgeTfi.className = "status-badge status-warn";
+                }
+
+                // Weather badge
+                const badgeWeather = document.getElementById("badgeWeather");
+                if (data.weatherStatus === "OK") {
+                    badgeWeather.textContent = "Weather OK";
+                    badgeWeather.className = "status-badge status-ok";
+                } else {
+                    badgeWeather.textContent = "Weather DOWN";
+                    badgeWeather.className = "status-badge status-warn";
+                }
+
+                // Simulation badge
+                const badgeSim = document.getElementById("badgeSim");
+                const simStatus = data.simStatus ?? "Unknown";
+
+                if (simStatus.includes("Running")) {
+                    badgeSim.textContent = "Simulation Running";
+                    badgeSim.className = "status-badge status-ok";
+                } else {
+                    badgeSim.textContent = "Simulation Paused";
+                    badgeSim.className = "status-badge status-warn";
+                }
+            })
+            .catch(() => {
+                console.warn("Launcher check failed");
+
+                // --- Force badges red on failure ---
+                const badgeTfi = document.getElementById("badgeTfi");
                 badgeTfi.textContent = "TFI DOWN";
                 badgeTfi.className = "status-badge status-warn";
-            }
 
-            // Weather badge
-            const badgeWeather = document.getElementById("badgeWeather");
-            if (data.weatherStatus === "OK") {
-                badgeWeather.textContent = "Weather OK";
-                badgeWeather.className = "status-badge status-ok";
-            } else {
+                const badgeWeather = document.getElementById("badgeWeather");
                 badgeWeather.textContent = "Weather DOWN";
                 badgeWeather.className = "status-badge status-warn";
-            }
 
-            // Simulation badge
-            const badgeSim = document.getElementById("badgeSim");
-            const simStatus = data.simStatus ?? "Unknown";
-
-            if (simStatus.includes("Running")) {
-                badgeSim.textContent = "Simulation Running";
-                badgeSim.className = "status-badge status-ok";
-            } else {
-                badgeSim.textContent = "Simulation Paused";
+                const badgeSim = document.getElementById("badgeSim");
+                badgeSim.textContent = "Simulation DOWN";
                 badgeSim.className = "status-badge status-warn";
-            }
-        })
-        .catch(() => {
-            console.warn("Launcher check failed");
-
-            // --- Force badges red on failure ---
-            const badgeTfi = document.getElementById("badgeTfi");
-            badgeTfi.textContent = "TFI DOWN";
-            badgeTfi.className = "status-badge status-warn";
-
-            const badgeWeather = document.getElementById("badgeWeather");
-            badgeWeather.textContent = "Weather DOWN";
-            badgeWeather.className = "status-badge status-warn";
-
-            const badgeSim = document.getElementById("badgeSim");
-            badgeSim.textContent = "Simulation DOWN";
-            badgeSim.className = "status-badge status-warn";
-        });
-    }
+            });
+        }
 
     // start periodic badge updates
-    setInterval(updateBadges, 3000);
-    updateBadges();
+        setInterval(updateBadges, 3000);
+        updateBadges();
 
 
 

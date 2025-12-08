@@ -25,7 +25,7 @@ app.UseCors("AllowAdminFrontend");
 app.MapGet("/", () => "Admin API for Travel to Hospital Advisor");
 // Read DB path from configuration
 string? dbPathFromConfig = app.Configuration["DatabasePath"];
-string dbPath = dbPathFromConfig ?? "C:\\Users\\user\\Desktop\\Final Project\\travel_dbs\\THA_DB.db";
+string dbPath = dbPathFromConfig ?? "../../../travel_dbs/THA_DB.db";
 
 // -----------------------------------------------------------------------------
 // Authentication middleware

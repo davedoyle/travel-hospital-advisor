@@ -189,7 +189,7 @@ app.MapGet("/api/bus/{hospitalCode}", async (string hospitalCode) =>
         return Results.NotFound(new { error = "Unknown hospital code (CUH/SFH)" });
 
     // Run importer before query
-    //await ImportLiveFeedToSQLite(); not needed!!!!
+    // await ImportLiveFeedToSQLite(); not needed!!!!
 
     string stopId = hospitalStops[hospitalCode];
     Console.WriteLine($"[API] Querying data for {hospitalCode} ({stopId})...");
